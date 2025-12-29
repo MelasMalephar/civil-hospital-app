@@ -1,14 +1,12 @@
-import dbPromise from "./db.js";
+import db from "./db.js";
 
 export async function initSlots(date) {
-  const db = await dbPromise;
+  const existing = await db.execute({
+    sql: "SELECT COUNT(*) as c FROM slots WHERE date = ?",
+    args: [date]
+  });
 
-  const existing = await db.get(
-    "SELECT COUNT(*) as c FROM slots WHERE date=?",
-    date
-  );
-
-  if (existing.c > 0) return;
+  if (existing.rows[0].c > 0) return;
 
   const slots = [
     "09:30-10:00","10:00-10:30","10:30-11:00",
@@ -20,12 +18,12 @@ export async function initSlots(date) {
   ];
 
   for (const time of slots) {
-    await db.run(
-      "INSERT INTO slots (date, time, max_capacity, booked) VALUES (?, ?, ?, ?)",
-      date,
-      time,
-      10,
-      0
-    );
+    await db.execute({
+      sql: `
+        INSERT INTO slots (date, time, max_capacity, booked)
+        VALUES (?, ?, ?, ?)
+      `,
+      args: [date, time, 10, 0]
+    });
   }
 }

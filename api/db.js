@@ -1,25 +1,22 @@
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
+import { createClient } from "@libsql/client";
 
-const dbPromise = open({
-  filename: "hospital.db",
-  driver: sqlite3.Database
+const db = createClient({
+  url: process.env.TURSO_DATABASE_URL,
+  authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
-// 🔹 Auto-create tables ONCE
+/* ---------- auto init tables ---------- */
 async function init() {
-  const db = await dbPromise;
-
-  await db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS slots (
       date TEXT,
       time TEXT,
       max_capacity INTEGER,
       booked INTEGER
-    );
+    )
   `);
 
-  await db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS bookings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT,
@@ -27,22 +24,19 @@ async function init() {
       phone TEXT,
       visit_type TEXT,
       device_id TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
   `);
 
-    await db.exec(`
-      CREATE TABLE IF NOT EXISTS meta (
-  key TEXT PRIMARY KEY,
-  value TEXT
-);
-
-`);
-
-  
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS meta (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `);
 }
 
-// Run immediately
-init();
+/* run once per cold start */
+init().catch(console.error);
 
-export default dbPromise;
+export default db;

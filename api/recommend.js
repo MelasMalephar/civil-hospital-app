@@ -1,34 +1,42 @@
-import dbPromise from "./db.js";
+import db from "./db.js";
 import { initSlots } from "./initSlots.js";
 import { cleanupIfNeeded } from "./cleanupIfNeeded.js";
 
-await cleanupIfNeeded();
+export const config = { runtime: "nodejs" };
 
 export default async function handler(req, res) {
   try {
+    if (req.method !== "POST") {
+      return res.status(405).end();
+    }
+
+    await cleanupIfNeeded();
+
     const { date } = req.body;
-    const db = await dbPromise;
 
     await initSlots(date);
 
-    const slots = await db.all(
-      "SELECT * FROM slots WHERE date=?",
-      date
-    );
+    const result = await db.execute({
+      sql: "SELECT * FROM slots WHERE date = ?",
+      args: [date]
+    });
 
-    const scored = slots.map(s => {
+    const slots = result.rows.map(s => {
       const score = s.booked / s.max_capacity;
       let crowd = "🟢 Low";
       if (score > 0.7) crowd = "🔴 High";
       else if (score > 0.4) crowd = "🟡 Medium";
-      return { ...s, score, crowd };
+
+      return { ...s, crowd };
     });
 
-    // scored.sort((a, b) => a.score - b.score);
+    res.json({
+      recommended: slots[0],
+      slots
+    });
 
-    res.json({ recommended: scored[0], slots: scored });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "server error" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 }

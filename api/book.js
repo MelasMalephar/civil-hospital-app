@@ -1,43 +1,49 @@
-import dbPromise from "./db.js";
+import db from "./db.js";
+import { cleanupIfNeeded } from "./cleanupIfNeeded.js";
+
+export const config = { runtime: "nodejs" };
 
 export default async function handler(req, res) {
   try {
-    const { date, time, phone, visitType, deviceId } = req.body;
-    const db = await dbPromise;
+    if (req.method !== "POST") {
+      return res.status(405).end();
+    }
 
-    if (!phone || phone.length < 8) {
+    await cleanupIfNeeded();
+
+    const { date, time, phone, visitType, deviceId } = req.body;
+
+    if (!/^[6-9]\d{9}$/.test(phone)) {
       return res.status(400).json({ message: "Invalid phone number" });
     }
 
-    // 🔒 1 booking per phone per day
-    const phoneExists = await db.get(
-      "SELECT 1 FROM bookings WHERE date=? AND phone=?",
-      date,
-      phone
-    );
+    // phone check
+    const phoneCheck = await db.execute({
+      sql: "SELECT 1 FROM bookings WHERE date = ? AND phone = ?",
+      args: [date, phone]
+    });
 
-    if (phoneExists) {
+    if (phoneCheck.rows.length > 0) {
       return res.json({ message: "Already booked for today" });
     }
 
-    // 🔒 1 booking per device per day
-    const deviceExists = await db.get(
-      "SELECT 1 FROM bookings WHERE date=? AND device_id=?",
-      date,
-      deviceId
-    );
+    // device check
+    const deviceCheck = await db.execute({
+      sql: "SELECT 1 FROM bookings WHERE date = ? AND device_id = ?",
+      args: [date, deviceId]
+    });
 
-    if (deviceExists) {
+    if (deviceCheck.rows.length > 0) {
       return res.json({ message: "Only one booking allowed per device per day" });
     }
 
-    // Check slot capacity
-    const slot = await db.get(
-      "SELECT * FROM slots WHERE date=? AND time=?",
-      date,
-      time
-    );
+    // slot check
+    const slotResult = await db.execute({
+      sql: "SELECT * FROM slots WHERE date = ? AND time = ?",
+      args: [date, time]
+    });
 
+    const slot = slotResult.rows[0];
     if (!slot) {
       return res.status(400).json({ message: "Invalid slot" });
     }
@@ -46,23 +52,20 @@ export default async function handler(req, res) {
       return res.json({ message: "Slot full" });
     }
 
-    // Update slot count
-    await db.run(
-      "UPDATE slots SET booked = booked + 1 WHERE date=? AND time=?",
-      date,
-      time
-    );
+    // update slot
+    await db.execute({
+      sql: "UPDATE slots SET booked = booked + 1 WHERE date = ? AND time = ?",
+      args: [date, time]
+    });
 
-    // Insert booking
-    await db.run(
-      `INSERT INTO bookings (date, time, phone, visit_type, device_id)
-       VALUES (?, ?, ?, ?, ?)`,
-      date,
-      time,
-      phone,
-      visitType,
-      deviceId
-    );
+    // insert booking
+    await db.execute({
+      sql: `
+        INSERT INTO bookings (date, time, phone, visit_type, device_id)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+      args: [date, time, phone, visitType, deviceId]
+    });
 
     res.json({ message: "Booking confirmed" });
 
