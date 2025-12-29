@@ -1,4 +1,5 @@
 import db from "./db.js";
+import { ensureSchema } from "./ensureSchema.js";
 
 function getLastSunday() {
   const d = new Date();
@@ -8,15 +9,10 @@ function getLastSunday() {
 }
 
 export async function cleanupIfNeeded() {
-  const lastSunday = getLastSunday();
+  // 🔹 Ensure all tables exist
+  await ensureSchema();
 
-  // 🔹 ENSURE meta table exists (idempotent)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS meta (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    )
-  `);
+  const lastSunday = getLastSunday();
 
   const result = await db.execute({
     sql: "SELECT value FROM meta WHERE key = ?",
@@ -26,7 +22,6 @@ export async function cleanupIfNeeded() {
   const row = result.rows[0];
   if (row?.value === lastSunday) return;
 
-  // 🔥 CLEANUP
   await db.execute({
     sql: "DELETE FROM bookings WHERE date < ?",
     args: [lastSunday]
@@ -37,7 +32,6 @@ export async function cleanupIfNeeded() {
     args: [lastSunday]
   });
 
-  // save cleanup date
   await db.execute({
     sql: "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
     args: ["last_cleanup", lastSunday]

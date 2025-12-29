@@ -1,5 +1,6 @@
 import db from "./db.js";
 import { cleanupIfNeeded } from "./cleanupIfNeeded.js";
+import { ensureSchema } from "./ensureSchema.js";
 
 export const config = { runtime: "nodejs" };
 
@@ -9,6 +10,7 @@ export default async function handler(req, res) {
       return res.status(405).end();
     }
 
+    await ensureSchema();
     await cleanupIfNeeded();
 
     const { date, time, phone, visitType, deviceId } = req.body;

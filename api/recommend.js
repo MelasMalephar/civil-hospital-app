@@ -1,6 +1,7 @@
 import db from "./db.js";
 import { initSlots } from "./initSlots.js";
 import { cleanupIfNeeded } from "./cleanupIfNeeded.js";
+import { ensureSchema } from "./ensureSchema.js";
 
 export const config = { runtime: "nodejs" };
 
@@ -10,6 +11,8 @@ export default async function handler(req, res) {
       return res.status(405).end();
     }
 
+    // 🔹 GUARANTEE tables exist
+    await ensureSchema();
     await cleanupIfNeeded();
 
     const { date } = req.body;
@@ -26,14 +29,10 @@ export default async function handler(req, res) {
       let crowd = "🟢 Low";
       if (score > 0.7) crowd = "🔴 High";
       else if (score > 0.4) crowd = "🟡 Medium";
-
       return { ...s, crowd };
     });
 
-    res.json({
-      recommended: slots[0],
-      slots
-    });
+    res.json({ recommended: slots[0], slots });
 
   } catch (err) {
     console.error(err);
