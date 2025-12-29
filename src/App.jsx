@@ -98,67 +98,51 @@ export default function App() {
 
   /* ---------- book ---------- */
 
-  async function book(time) {
-    if (!/^[6-9]\d{9}$/.test(phone)) {
-      alert("Please enter a valid 10-digit mobile number");
-      return;
-    }
+ async function book(time) {
+  try {
+    setBookingLoading(true);
 
+    const date =
+      day === "today"
+        ? new Date().toISOString().slice(0, 10)
+        : new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
-    if (captcha !== captchaObj.answer) {
-      alert("Captcha incorrect");
-      return;
-    }
+    const res = await fetch("/api/book", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date,
+        time,
+        phone,
+        visitType,
+        deviceId
+      })
+    });
 
-    try {
-      setBookingLoading(true);
+    const data = await res.json();
 
-      const date =
-        day === "today"
-          ? new Date().toISOString().slice(0, 10)
-          : new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    // ✅ ALWAYS show backend message
+    alert(data.message);
 
-      const res = await fetch("/api/book", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date,
-          time,
-          phone,
-          visitType,
-          captcha,
-          deviceId
-        })
-      });
+    // ✅ CLOSE MODAL FOR ANY VALID RESPONSE
+    setSelectedSlot(null);
 
-      const data = await res.json();
+    // ✅ RESET INPUTS
+    setPhone("");
+    setCaptcha("");
+    setCaptchaObj(generateCaptcha());
 
-      // ❌ FAILURE CASES
-      if (!res.ok || data.message !== "Booking confirmed") {
-        alert(data.message || "Booking failed");
-        return;
-      }
+    // 🔁 Refresh slots
+    recommend();
 
-      // ✅ SUCCESS CASE
-      setSuccessMsg(
-        `✅ Appointment confirmed for ${time}. Please arrive 10 minutes early.`
-      );
-
-      // reset + close modal
-      setCaptcha("");
-      setCaptchaObj(generateCaptcha());
-      setSelectedSlot(null);
-      setPhone("");
-
-      recommend();
-
-    } catch (err) {
-      alert("Network error. Please try again.");
-    } finally {
-      setBookingLoading(false);
-    }
-
+  } catch (err) {
+    console.error(err);
+    alert("Unable to book right now. Please try again.");
+  } finally {
+    setBookingLoading(false);
   }
+}
+
 
   /* ---------- UI ---------- */
 
